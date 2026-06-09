@@ -12,8 +12,13 @@ import turnstileService from './turnstile-service';
 import roleService from './role-service';
 import { t } from '../i18n/i18n';
 import verifyRecordService from './verify-record-service';
+import { v4 as uuidv4 } from 'uuid';
 
 const accountService = {
+
+	newSid() {
+		return uuidv4().replace(/-/g, '');
+	},
 
 	async add(c, params, userId) {
 
@@ -88,7 +93,12 @@ const accountService = {
 		}
 
 
-		accountRow = await orm(c).insert(account).values({ email: email, userId: userId, name: emailUtils.getName(email) }).returning().get();
+		accountRow = await orm(c).insert(account).values({
+			email: email,
+			userId: userId,
+			name: emailUtils.getName(email),
+			sid: this.newSid()
+		}).returning().get();
 
 		if (addEmailVerify === settingConst.addEmailVerify.COUNT && !addVerifyOpen) {
 			const row = await verifyRecordService.increaseAddCount(c);
@@ -101,6 +111,10 @@ const accountService = {
 
 	selectByEmailIncludeDel(c, email) {
 		return orm(c).select().from(account).where(sql`${account.email} COLLATE NOCASE = ${email}`).get();
+	},
+
+	selectBySid(c, sid) {
+		return orm(c).select().from(account).where(and(eq(account.sid, sid), eq(account.isDel, isDel.NORMAL))).get();
 	},
 
 	list(c, params, userId) {
@@ -169,11 +183,16 @@ const accountService = {
 	},
 
 	async insert(c, params) {
-		await orm(c).insert(account).values({ ...params }).returning();
+		const values = { ...params };
+		if (!values.sid) {
+			values.sid = this.newSid();
+		}
+		await orm(c).insert(account).values(values).returning();
 	},
 
 	async insertList(c, list) {
-		await orm(c).insert(account).values(list).run();
+		const values = list.map(item => item.sid ? item : { ...item, sid: this.newSid() });
+		await orm(c).insert(account).values(values).run();
 	},
 
 	async physicsDeleteByUserIds(c, userIds) {

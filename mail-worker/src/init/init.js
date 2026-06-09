@@ -29,8 +29,33 @@ const dbInit = {
 		await this.v2_8DB(c);
 		await this.v2_9DB(c);
 		await this.v3_0DB(c);
+		await this.v3_1DB(c);
 		await settingService.refresh(c);
 		return c.text('success');
+	},
+
+	async v3_1DB(c) {
+		try {
+			await c.env.db.prepare(`ALTER TABLE account ADD COLUMN sid TEXT NOT NULL DEFAULT '';`).run();
+		} catch (e) {
+			console.warn(`跳过字段，${e.message}`);
+		}
+
+		try {
+			const { results } = await c.env.db.prepare(`SELECT account_id FROM account WHERE sid = '' OR sid IS NULL`).all();
+			for (const row of results) {
+				const sid = crypto.randomUUID().replace(/-/g, '');
+				await c.env.db.prepare(`UPDATE account SET sid = ? WHERE account_id = ?`).bind(sid, row.account_id).run();
+			}
+		} catch (e) {
+			console.warn(`跳过sid回填，${e.message}`);
+		}
+
+		try {
+			await c.env.db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_account_sid ON account (sid);`).run();
+		} catch (e) {
+			console.warn(`跳过索引，${e.message}`);
+		}
 	},
 
 	async v3_0DB(c) {
@@ -580,6 +605,7 @@ const dbInit = {
 		  CREATE TABLE IF NOT EXISTS account (
 			account_id INTEGER PRIMARY KEY AUTOINCREMENT,
 			email TEXT NOT NULL,
+			sid TEXT NOT NULL DEFAULT '',
 			status INTEGER DEFAULT 0 NOT NULL,
 			latest_email_time DATETIME,
 			create_time DATETIME DEFAULT CURRENT_TIMESTAMP,

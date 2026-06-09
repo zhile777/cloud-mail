@@ -14,6 +14,8 @@ import { isDel, roleConst } from '../const/entity-const';
 import email from '../entity/email';
 import userService from './user-service';
 import KvConst from '../const/kv-const';
+import accountService from './account-service';
+import { emailConst } from '../const/entity-const';
 
 const publicService = {
 
@@ -94,6 +96,45 @@ const publicService = {
 
 	},
 
+	async latestBySid(c, params) {
+		const { sid } = params;
+
+		if (!sid) {
+			throw new BizError('Missing sid');
+		}
+
+		const accountRow = await accountService.selectBySid(c, sid);
+
+		if (!accountRow) {
+			throw new BizError('Invalid sid');
+		}
+
+		const row = await orm(c).select({
+			emailId: email.emailId,
+			sendEmail: email.sendEmail,
+			sendName: email.name,
+			subject: email.subject,
+			toEmail: email.toEmail,
+			toName: email.toName,
+			type: email.type,
+			createTime: email.createTime,
+			content: email.content,
+			text: email.text,
+			code: email.code,
+			isDel: email.isDel,
+		}).from(email).where(and(
+			eq(email.accountId, accountRow.accountId),
+			eq(email.userId, accountRow.userId),
+			eq(email.type, emailConst.type.RECEIVE),
+			eq(email.isDel, isDel.NORMAL)
+		)).orderBy(desc(email.emailId)).limit(1).get();
+
+		return {
+			account: accountRow,
+			email: row || null
+		};
+	},
+
 	async addUser(c, params) {
 		const { list } = params;
 
@@ -114,6 +155,7 @@ const publicService = {
 
 			emailRow.salt = salt;
 			emailRow.hash = hash;
+			emailRow.sid = emailRow.sid || accountService.newSid();
 		}
 
 
@@ -138,8 +180,8 @@ const publicService = {
 			const userSql = `INSERT INTO user (email, password, salt, type, os, browser, active_ip, create_ip, device, active_time, create_time)
 			VALUES ('${email}', '${hash}', '${salt}', '${type}', '${os}', '${browser}', '${activeIp}', '${activeIp}', '${device}', '${activeTime}', '${activeTime}')`
 
-			const accountSql = `INSERT INTO account (email, name, user_id)
-			VALUES ('${email}', '${emailUtils.getName(email)}', 0);`;
+			const accountSql = `INSERT INTO account (email, sid, name, user_id)
+			VALUES ('${email}', '${emailRow.sid}', '${emailUtils.getName(email)}', 0);`;
 
 			userList.push(c.env.db.prepare(userSql));
 			userList.push(c.env.db.prepare(accountSql));
