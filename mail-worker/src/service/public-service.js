@@ -126,8 +126,17 @@ const publicService = {
 			eq(email.accountId, accountRow.accountId),
 			eq(email.userId, accountRow.userId),
 			eq(email.type, emailConst.type.RECEIVE),
-			eq(email.isDel, isDel.NORMAL)
+			eq(email.isDel, isDel.NORMAL),
+			eq(email.unread, emailConst.unread.UNREAD)
 		)).orderBy(desc(email.emailId)).limit(1).get();
+
+		if (row) {
+			await orm(c).update(email)
+				.set({ unread: emailConst.unread.READ })
+				.where(eq(email.emailId, row.emailId))
+				.run();
+			row.unread = emailConst.unread.READ;
+		}
 
 		return {
 			account: accountRow,

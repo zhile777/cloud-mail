@@ -28,11 +28,11 @@ app.get('/public/latest', async (c) => {
 			<html>
 				<head>
 					<meta charset="utf-8" />
-					<title>No mail yet</title>
+					<title>No new mail</title>
 				</head>
 				<body>
-					<h1>No mail yet</h1>
-					<p>${account.email} has no received mail.</p>
+					<h1>No new mail</h1>
+					<p>${account.email} has no unread mail.</p>
 				</body>
 			</html>`);
 	}
